@@ -25,6 +25,8 @@ void moro_sound_hook_moon_pcm_probe(struct regmap *pmap);
 int _regmap_write_nohook(struct regmap *map, unsigned int reg, unsigned int val);
 int set_speaker_gain(int gain);
 int get_speaker_gain(void);
+int get_rcv(void);
+void set_rcv(int val);
 
 
 /*****************************************/

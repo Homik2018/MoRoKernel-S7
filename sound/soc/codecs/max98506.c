@@ -455,6 +455,31 @@ static int max98506_spk_gain_put(struct snd_kcontrol *kcontrol,
 #ifdef CONFIG_MORO_SOUND
 struct snd_soc_codec *max98506_codec;
 
+int get_rcv(void)
+{
+	struct max98506_priv *max98506 = snd_soc_codec_get_drvdata(max98506_codec);
+
+	unsigned int data;
+
+	regmap_read(max98506->regmap, MAX98506_R02E_GAIN_RAMPING, &data);
+	data &= MAX98506_SPK_ZCD_EN_MASK;
+	data >>= MAX98506_SPK_ZCD_EN_SHIFT;
+
+	return data;
+}
+
+void set_rcv(int val)
+{
+	struct max98506_priv *max98506 = snd_soc_codec_get_drvdata(max98506_codec);
+
+	unsigned int data;
+
+	regmap_read(max98506->regmap, MAX98506_R02E_GAIN_RAMPING, &data);
+	data &= ~MAX98506_SPK_ZCD_EN_MASK;
+	data |= (val << MAX98506_SPK_ZCD_EN_SHIFT);
+	regmap_write(max98506->regmap, MAX98506_R02E_GAIN_RAMPING, data);
+}
+
 int get_speaker_gain(void)
 {
 	struct max98506_priv *max98506 = snd_soc_codec_get_drvdata(max98506_codec);

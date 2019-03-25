@@ -39,8 +39,11 @@ static int earpiece_gain;	// earpiece volume
 
 static int speaker_gain;	// speaker volume
 
-static int out1l_mix_source;	// out1 mix source left
-static int out1r_mix_source;	// out1 mix source right
+static int rcv;	// speaker volume
+
+static int out1l_mix_source;	// headphone l mix source left
+static int out1r_mix_source;	// headphone r mix source right
+static int out3l_mix_source;	// earpiece l source left
 static int eq1_mix_source;	// eq1 mix source left
 static int eq2_mix_source;	// eq2 mix soirce right
 
@@ -62,6 +65,8 @@ static void set_earpiece_gain(void);
 
 static void set_out1l_mix_source(void);
 static void set_out1r_mix_source(void);
+
+static void set_out3l_mix_source(void);
 
 static void set_eq1_mix_source(void);
 static void set_eq2_mix_source(void);
@@ -162,6 +167,27 @@ static void set_out1r_mix_source(void)
 	val &= ~ARIZONA_MIXER_SOURCE_MASK;
 	val |= (out1r_mix_source << ARIZONA_MIXER_SOURCE_SHIFT);
 	moon_write(ARIZONA_OUT1RMIX_INPUT_1_SOURCE, val);
+}
+
+static unsigned int get_out3l_mix_source(void)
+{
+	unsigned int val;
+
+	moon_read(ARIZONA_OUT3LMIX_INPUT_1_SOURCE, &val);
+	val &= ARIZONA_MIXER_SOURCE_MASK;
+	val >>= ARIZONA_MIXER_SOURCE_SHIFT;
+
+	return val;
+}
+
+static void set_out3l_mix_source(void)
+{
+	unsigned int val;
+
+	moon_read(ARIZONA_OUT3LMIX_INPUT_1_SOURCE, &val);
+	val &= ~ARIZONA_MIXER_SOURCE_MASK;
+	val |= (out3l_mix_source << ARIZONA_MIXER_SOURCE_SHIFT);
+	moon_write(ARIZONA_OUT3LMIX_INPUT_1_SOURCE, val);
 }
 
 static void set_eq1_mix_source(void)
@@ -512,6 +538,48 @@ static ssize_t headphone_gain_store(struct device *dev, struct device_attribute 
 }
 
 
+// OUT3 MIX source
+
+static ssize_t out3l_mix_source_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int val;
+
+	val = get_out3l_mix_source();
+
+	// print current values
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t out3l_mix_source_store(struct device *dev, struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	unsigned int ret = -EINVAL;
+	int val;
+
+	// Terminate if moro sound is not enabled
+	if (!moro_sound)
+		return count;
+
+	// read values from input buffer
+	ret = sscanf(buf, "%d", &val);
+
+	if (ret != 1)
+		return -EINVAL;
+
+	// store new values
+	out3l_mix_source = val;
+
+	// set new values
+	set_out3l_mix_source();
+
+	// print debug info
+	if (debug)
+		printk("Moro-sound: out3l_mix_source: %d\n", out3l_mix_source);
+
+	return count;
+}
+
+
 // Earpiece Volume
 
 static ssize_t earpiece_gain_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -593,6 +661,44 @@ static ssize_t speaker_gain_store(struct device *dev, struct device_attribute *a
 	// print debug info
 	if (debug)
 		printk("Moro-sound: speaker volume: %d\n", speaker_gain);
+
+	return count;
+}
+
+
+// RCV
+
+static ssize_t rcv_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int val;
+
+	val = get_rcv();
+
+	// print current values
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t rcv_store(struct device *dev, struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	unsigned int ret = -EINVAL;
+	int val;
+
+	// read values from input buffer
+	ret = sscanf(buf, "%d", &val);
+
+	if (ret != 1)
+		return -EINVAL;
+
+	// store new values
+	rcv = val;
+
+	// set new values
+	set_rcv(rcv);
+
+	// print debug info
+	if (debug)
+		printk("Moro-sound: RCV: %d\n", rcv);
 
 	return count;
 }
@@ -951,6 +1057,8 @@ speaker_gain: %d\n\
 HPOUT Enabled: %d\n\
 HPOUT1L Source: %d\n\
 HPOUT1R Source: %d\n\
+HPOUT3 Source: %d\n\
+RCV: %d\n\
 EQ1 Enabled: %d\n\
 EQ2 Enabled: %d\n\
 EQ1MIX source: %d\n\
@@ -968,6 +1076,8 @@ get_speaker_gain(),
 out1_ena,
 out1l_mix,
 out1r_mix,
+get_out3l_mix_source(),
+get_rcv(),
 eq1_ena,
 eq2_ena,
 eq1_mix,
@@ -998,6 +1108,8 @@ static DEVICE_ATTR(moro_sound, 0664, moro_sound_show, moro_sound_store);
 static DEVICE_ATTR(headphone_gain, 0664, headphone_gain_show, headphone_gain_store);
 static DEVICE_ATTR(earpiece_gain, 0664, earpiece_gain_show, earpiece_gain_store);
 static DEVICE_ATTR(speaker_gain, 0664, speaker_gain_show, speaker_gain_store);
+static DEVICE_ATTR(out3l_mix_source, 0664, out3l_mix_source_show, out3l_mix_source_store);
+static DEVICE_ATTR(rcv, 0664, rcv_show, rcv_store);
 static DEVICE_ATTR(eq, 0664, eq_show, eq_store);
 static DEVICE_ATTR(eq_gains, 0664, eq_gains_show, eq_gains_store);
 static DEVICE_ATTR(eq_b1_gain, 0664, eq_b1_gain_show, eq_b1_gain_store);
@@ -1015,6 +1127,8 @@ static struct attribute *moro_sound_attributes[] = {
 	&dev_attr_headphone_gain.attr,
 	&dev_attr_earpiece_gain.attr,
 	&dev_attr_speaker_gain.attr,
+	&dev_attr_out3l_mix_source.attr,
+	&dev_attr_rcv.attr,
 	&dev_attr_eq.attr,
 	&dev_attr_eq_gains.attr,
 	&dev_attr_eq_b1_gain.attr,
